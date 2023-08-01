@@ -18,7 +18,9 @@ return new class extends Migration
             $table->foreignId('user_id');
             $table->foreignId('merchant_id');
             // TODO: Replace me with a brief explanation of why floats aren't the correct data type, and replace with the correct data type.
-            $table->float('commission_rate');
+            // Float values should be replaced with decimal because its provide better accuracy. Also when we need precise calculations financial data or monetary values where accuracy is crucial.
+            // Floats are not acceptable on here because its returns approximately results, whereas decimal provide better accuracy of decimal points.
+            $table->decimal('commission_rate', 4,2); // As commission rate is most probably in percentage and we might not need to occupy extra bits in memory
             $table->string('discount_code');
             $table->timestamps();
         });

@@ -22,5 +22,15 @@ class WebhookController extends Controller
     public function __invoke(Request $request): JsonResponse
     {
         // TODO: Complete this method
+
+        $data = $request->all();
+
+        $this->orderService->processOrder($data);
+
+        return response()->json([
+            "success" => true,
+            "message" => "Order processed successfully",
+            "data" => []
+        ]);
     }
 }

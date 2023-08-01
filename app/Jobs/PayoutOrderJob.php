@@ -34,5 +34,13 @@ class PayoutOrderJob implements ShouldQueue
     public function handle(ApiService $apiService)
     {
         // TODO: Complete this method
+
+        $email = $this->order->affiliate->user->email;
+        if($this->order->payout_status == Order::STATUS_UNPAID){
+            $order = Order::where(['id' => $this->order->id])->first();
+            $order->payout_status = Order::STATUS_PAID;
+            $order->save();
+            $apiService->sendPayout($email, $this->order->commission_owed);
+        }
     }
 }

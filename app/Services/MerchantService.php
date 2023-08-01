@@ -7,6 +7,9 @@ use App\Models\Affiliate;
 use App\Models\Merchant;
 use App\Models\Order;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 
 class MerchantService
 {
@@ -21,6 +24,42 @@ class MerchantService
     public function register(array $data): Merchant
     {
         // TODO: Complete this method
+        $validator = Validator::make($data, [
+            "domain" => ['required', Rule::unique('merchants', 'domain'), "string"],
+            "name" => ["required", "string"],
+            "email" => ["required", "email:rfc:dns", Rule::unique("users", "email")],
+            "api_key" => ["required"]
+        ]);
+
+        if ($validator->fails()) {
+            return $validator->getMessageBag()->all();
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $user = User::firstOrCreate(
+                ["email" => $data['email']],
+                [
+                    "name" => $data['name'],
+                    "password" => $data["api_key"],
+                    "type" => User::TYPE_MERCHANT
+                ]
+            );
+
+            $merchant = $user->merchant()->create([
+                "domain" => $data['domain'],
+                "display_name" => $user->name
+            ]);
+
+            DB::commit();
+            return $merchant;
+        } catch (\Exception $exception) {
+            DB::rollBack();
+            throw new \Exception($exception->getMessage());
+        }
+
+
     }
 
     /**
@@ -31,7 +70,36 @@ class MerchantService
      */
     public function updateMerchant(User $user, array $data)
     {
-        // TODO: Complete this method
+        $validator = Validator::make($data, [
+            "domain" => ['required', Rule::unique('merchants', 'domain')->ignore($data['domain'], 'domain'), "string"],
+            "name" => ["required", "string"],
+            "email" => ["required", "email", Rule::unique("users", "email")->ignore($user->id)],
+            "api_key" => ["required"]
+        ]);
+
+        if ($validator->fails()) {
+            return $validator->getMessageBag()->all();
+        }
+
+        User::updateOrCreate(
+            ["email" => $data['email']],
+            [
+                "name" => $data['name'],
+                "password" => $data["api_key"],
+                "type" => User::TYPE_MERCHANT
+            ]
+        );
+
+        $merchant = Merchant::whereUserId($user->id)->first();
+
+        if ($merchant) {
+            $merchant->user_id = $user->id;
+            $merchant->domain = $data['domain'];
+            $merchant->display_name = $data['name'];
+            $merchant->save();
+        }
+
+        return $merchant;
     }
 
     /**
@@ -44,6 +112,8 @@ class MerchantService
     public function findMerchantByEmail(string $email): ?Merchant
     {
         // TODO: Complete this method
+
+        return optional(User::whereEmail($email)->first())->merchant;
     }
 
     /**
@@ -56,5 +126,11 @@ class MerchantService
     public function payout(Affiliate $affiliate)
     {
         // TODO: Complete this method
+        $orders = Order::where(['affiliate_id' => $affiliate->id])->get();
+        foreach ($orders as $order) {
+            if($order->payout_status == Order::STATUS_UNPAID) {
+                PayoutOrderJob::dispatch($order);
+            }
+        }
     }
 }
